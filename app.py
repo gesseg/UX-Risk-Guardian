@@ -58,6 +58,127 @@ RISKS_PATH = resolve_path("risks.yaml")
 REFS_PATH  = resolve_path("references.yaml")
 TELEM_PATH = BASE_DIR / "telemetry.csv"
 
+# ===== Fallback embutido (caso os YAML não existam no repo) =====
+EMBEDDED_REFERENCES = """
+- id: ruckenstein2022
+  authors: Ruckenstein, M.; Granroth, J.
+  year: 2022
+  title: Definition drives design — Disability models and mechanisms of bias in AI technologies
+  venue: arXiv preprint
+  doi: 10.48550/arXiv.2206.08287
+  url: https://arxiv.org/abs/2206.08287
+
+- id: mosqueira2023
+  authors: Mosqueira-Rey, E.; et al.
+  year: 2023
+  title: Human-in-the-loop Machine Learning — A State of the Art
+  venue: Artificial Intelligence Review (Springer)
+  doi: 10.1007/s10462-022-10246-w
+  url: https://link.springer.com/article/10.1007/s10462-022-10246-w
+
+- id: mehrabi2022
+  authors: Mehrabi, N.; et al.
+  year: 2022
+  title: A survey on bias and fairness in machine learning
+  venue: ACM Computing Surveys
+  doi: 10.1145/3457607
+  url: https://dl.acm.org/doi/10.1145/3457607
+
+- id: zoller2024
+  authors: Zöller, C.; et al.
+  year: 2024
+  title: The impact of AI errors in a human-in-the-loop process
+  venue: PLOS ONE (PMC)
+  doi: 10.1371/journal.pone.0296535
+  url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10772030/
+
+- id: kim2023
+  authors: Kim, J.; et al.
+  year: 2023
+  title: Designerly Understanding: Information Needs for Model Transparency to Support Design Ideation for AI-Powered UX
+  venue: arXiv preprint
+  doi: 10.48550/arXiv.2302.10395
+  url: https://arxiv.org/abs/2302.10395
+"""
+
+EMBEDDED_RISKS = """
+- id: risk_desumanizacao
+  phase: Understand
+  title: Dehumanization through context-insensitive automation
+  severity: High
+  justification: >-
+    Generic models can ignore cultural/accessibility context, excluding users and harming adoption.
+  evidence:
+    - Automation can overlook disability models and context.
+    - Cultural misalignment degrades trust and fairness perception.
+  references: [ruckenstein2022]
+  mitigations:
+    - Include lived-experience users and accessibility experts in reviews.
+    - Add inclusive personas and scenario walkthroughs to decision logs.
+    - Require context notes in prompts and model cards.
+  ai_act_note: Potential Limited/High risk depending on domain; ensure transparency and accessibility compliance.
+
+- id: risk_intencionalidade
+  phase: Specify
+  title: Loss of design intentionality and purpose drift
+  severity: Moderate
+  justification: >-
+    Delegating key choices to AI can detach outcomes from strategy, reducing differentiation and value.
+  evidence:
+    - Practitioners report agency/purpose dilution with automation.
+  references: [mosqueira2023]
+  mitigations:
+    - Human gates for vision, outcomes, success criteria.
+    - Design rationale log linked to AI-assisted artifacts.
+    - Human approval for changes to goals/metrics.
+  ai_act_note: Transparency and human oversight duties recommended.
+
+- id: risk_bias
+  phase: Understand
+  title: Algorithmic bias and unfair outcomes
+  severity: Very High
+  justification: >-
+    Discriminatory outcomes cause legal/reputation risk and exclusion; remediation is costly.
+  evidence:
+    - Bias emerges from data and reinforces discrimination at scale.
+  references: [mehrabi2022]
+  mitigations:
+    - Fairness checks on representative samples before release.
+    - Human override/appeal channel for affected users.
+    - Track disparity metrics by key segments.
+  ai_act_note: High-risk in sensitive domains; rigorous risk management required.
+
+- id: risk_automation_bias
+  phase: Create
+  title: Automation bias (over-reliance on AI suggestions)
+  severity: High
+  justification: >-
+    Designers may accept wrong AI suggestions, leading to usability defects and misaligned features.
+  evidence:
+    - Human accuracy drops when exposed to erroneous AI outputs.
+  references: [zoller2024]
+  mitigations:
+    - Show confidence/uncertainty cues.
+    - Force exploration of ≥2 alternatives before selection.
+    - Error review rituals with human-first judgment.
+  ai_act_note: Transparency/logging obligations; promote human oversight.
+
+- id: risk_transparencia
+  phase: Evaluate
+  title: Lack of traceability and transparency
+  severity: Moderate
+  justification: >-
+    Sem trilhas de auditoria/racional, decisões ficam indefensáveis e compliance/trust caem.
+  evidence:
+    - Designers need model transparency artifacts to decide.
+  references: [kim2023]
+  mitigations:
+    - Model/prompt cards ligados aos artefatos.
+    - Log de alterações assistidas por IA (quem/por quê).
+    - Disclosures ao usuário quando aplicável.
+  ai_act_note: Limited-risk transparency duties likely apply.
+"""
+
 def load_kb(risks_path: Path, refs_path: Path):
     """Tenta ler de /raiz ou /data; se não existir, usa o fallback EMBUTIDO e mostra um aviso."""
     try:
