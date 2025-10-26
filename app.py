@@ -192,8 +192,6 @@ EMBEDDED_RISKS = [
     },
 ]
 
-v
-
 def build_reference_dict(refs_yaml) -> dict:
     d = {}
     for r in refs_yaml:
