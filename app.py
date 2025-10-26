@@ -47,9 +47,16 @@ with st.sidebar:
 
 # ---------------------- Paths & KB ----------------------
 BASE_DIR = Path(__file__).parent.resolve()
-RISKS_PATH = str(BASE_DIR / "data" / "risks.yaml")
-REFS_PATH = str(BASE_DIR / "data" / "references.yaml")
-TELEM_PATH = str(BASE_DIR / "telemetry.csv")
+
+def resolve_path(filename: str) -> Path:
+    """Tenta achar o arquivo na raiz; se não existir, tenta em /data."""
+    p_root = BASE_DIR / filename
+    p_data = BASE_DIR / "data" / filename
+    return p_root if p_root.exists() else p_data
+
+RISKS_PATH = resolve_path("risks.yaml")
+REFS_PATH  = resolve_path("references.yaml")
+TELEM_PATH = BASE_DIR / "telemetry.csv"
 
 def load_kb(risks_path: str, refs_path: str):
     with open(risks_path, "r", encoding="utf-8") as f:
