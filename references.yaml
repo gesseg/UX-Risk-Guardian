@@ -1,0 +1,87 @@
+- id: ruckenstein2022
+  authors: Ruckenstein, M.; Granroth, J.
+  year: 2022
+  title: Definition drives design — Disability models and mechanisms of bias in AI technologies
+  venue: arXiv preprint
+  doi: 10.48550/arXiv.2206.08287
+  url: https://arxiv.org/abs/2206.08287
+
+- id: mosqueira2023
+  authors: Mosqueira-Rey, E.; et al.
+  year: 2023
+  title: Human-in-the-loop Machine Learning — A State of the Art
+  venue: Artificial Intelligence Review (Springer)
+  doi: 10.1007/s10462-022-10246-w
+  url: https://link.springer.com/article/10.1007/s10462-022-10246-w
+
+- id: ehsan2020
+  authors: Ehsan, U.; Riedl, M. O.
+  year: 2020
+  title: Human-Centered Explainable AI: Towards a Reflective Sociotechnical Approach
+  venue: arXiv preprint
+  doi: 10.48550/arXiv.2002.01092
+  url: https://arxiv.org/abs/2002.01092
+
+- id: pyae2025
+  authors: Pyae, A.
+  year: 2025
+  title: What is Human-Centeredness in Human-Centered AI? Development of Human-Centeredness Framework and AI Practitioners’ Perspectives
+  venue: arXiv preprint
+  doi: 10.48550/arXiv.2502.03293
+  url: https://arxiv.org/abs/2502.03293
+
+- id: gautam2025
+  authors: Gautam, V.; et al.
+  year: 2025
+  title: Towards Experience-Centered AI: A Framework for Integrating Lived Experience in Design and Development
+  venue: arXiv preprint
+  doi: 10.48550/arXiv.2508.06849
+  url: https://arxiv.org/abs/2508.06849
+
+- id: shneiderman2020
+  authors: Shneiderman, B.
+  year: 2020
+  title: Human-Centered Artificial Intelligence: Reliable, Safe & Trustworthy
+  venue: International Journal of Human-Computer Interaction
+  doi: 10.1080/10447318.2020.1741118
+  url: https://www.tandfonline.com/doi/abs/10.1080/10447318.2020.1741118
+
+- id: sun2022
+  authors: Sun, T.; et al.
+  year: 2022
+  title: Exploring Gender Biases in ML and AI Academic Research
+  venue: Frontiers in Artificial Intelligence
+  doi: 10.3389/frai.2022.976838
+  url: https://www.frontiersin.org/articles/10.3389/frai.2022.976838
+
+- id: mehrabi2022
+  authors: Mehrabi, N.; et al.
+  year: 2022
+  title: A survey on bias and fairness in machine learning
+  venue: ACM Computing Surveys
+  doi: 10.1145/3457607
+  url: https://dl.acm.org/doi/10.1145/3457607
+
+- id: christensen2023
+  authors: Christensen, J.; et al.
+  year: 2023
+  title: Human–AI Interactions in Public Sector Decision Making
+  venue: Journal of Public Administration Research and Theory
+  doi: 10.1093/jopart/muac039
+  url: https://academic.oup.com/jpart/article/33/1/153/6524536
+
+- id: zoller2024
+  authors: Zöller, C.; et al.
+  year: 2024
+  title: The impact of AI errors in a human-in-the-loop process
+  venue: PLOS ONE (PMC)
+  doi: 10.1371/journal.pone.0296535
+  url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10772030/
+
+- id: kim2023
+  authors: Kim, J.; et al.
+  year: 2023
+  title: Designerly Understanding: Information Needs for Model Transparency to Support Design Ideation for AI-Powered UX
+  venue: arXiv preprint
+  doi: 10.48550/arXiv.2302.10395
+  url: https://arxiv.org/abs/2302.10395

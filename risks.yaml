@@ -1,0 +1,75 @@
+- id: risk_desumanizacao
+  phase: Understand
+  title: Dehumanization through context-insensitive automation
+  severity: High
+  justification: >-
+    Severe impact risk: generic models ignore cultural and accessibility contexts, potentially excluding user groups and harming brand perception and adoption.
+  evidence:
+    - Automation can overlook disability models and context, causing exclusion.
+    - Cultural misalignment degrades trust and perceived fairness.
+  references: [ruckenstein2022]
+  mitigations:
+    - Include lived-experience users and accessibility experts in reviews.
+    - Add inclusive personas and scenario walkthroughs to decision logs.
+    - Require context notes in prompts and model cards.
+  ai_act_note: Potential Limited/High risk depending on domain; ensure transparency and accessibility compliance.
+
+- id: risk_intencionalidade
+  phase: Specify
+  title: Loss of design intentionality and purpose drift
+  severity: Moderate
+  justification: >-
+    Notable impact: delegating key design choices to AI can detach outcomes from product strategy, reducing differentiation and user value.
+  evidence:
+    - UX professionals report concerns about agency and purpose dilution.
+  references: [mosqueira2023]
+  mitigations:
+    - Keep human decision gates for vision, outcomes, and success criteria.
+    - Maintain a design rationale log linked to each AI-assisted artifact.
+    - Enforce human approval for goal/metric changes.
+  ai_act_note: Transparency and human oversight duties recommended.
+
+- id: risk_bias
+  phase: Understand
+  title: Algorithmic bias and unfair outcomes
+  severity: Very High
+  justification: >-
+    Extremely severe: discriminatory outcomes can trigger reputational harm, legal exposure, and systemic exclusion of users; remediation costs are high.
+  evidence:
+    - Bias emerges from data and can reinforce discrimination at scale.
+  references: [mehrabi2022, sun2022]
+  mitigations:
+    - Run fairness checks on representative samples before deployment.
+    - Add a human override and appeal channel for affected users.
+    - Track disparity metrics across key segments.
+  ai_act_note: High-risk in sensitive domains; rigorous risk management and oversight required.
+
+- id: risk_automation_bias
+  phase: Create
+  title: Automation bias (over-reliance on AI suggestions)
+  severity: High
+  justification: >-
+    Severe: designers may accept AI suggestions without critical evaluation, leading to usability defects and misaligned features.
+  evidence:
+    - Human accuracy drops when exposed to erroneous AI outputs.
+  references: [zoller2024, christensen2023]
+  mitigations:
+    - Show model confidence and uncertainty cues.
+    - Force alternative exploration (N≥2 variants) before selection.
+    - Establish error review rituals with human judgment first.
+  ai_act_note: Transparency and logging obligations; promote human oversight.
+
+- id: risk_transparencia
+  phase: Evaluate
+  title: Lack of traceability and transparency
+  severity: Moderate
+  justification: >-
+    Notable: without audit trails and rationale, teams cannot explain or defend design decisions, weakening compliance and stakeholder trust.
+  evidence:
+    - Designers need model transparency artifacts to make informed choices.
+  references: [kim2023]
+  mitigations:
+    - Maintain model and prompt cards linked to artifacts.
+    - Log AI-assisted changes with who/why.
+    - Provide end-user disclosures where applicable.
+  ai_act_note: Limited-risk transparency duties likely apply.
