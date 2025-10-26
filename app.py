@@ -1,4 +1,4 @@
-# app.py — Aura UX — UX-Risk-Guardian (single-file, robusto)
+# app.py — Aura UX — UX-Risk-Guardian (versão estável final)
 import os
 from datetime import datetime
 from pathlib import Path
@@ -11,7 +11,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.units import cm
 from reportlab.lib.utils import simpleSplit
 
-# ===== OpenAI opcional (apenas para condensar texto; base é 100% curada) =====
+# ===== OpenAI opcional (usado só para condensar texto; app funciona sem) =====
 try:
     from openai import OpenAI
 except Exception:
@@ -21,7 +21,7 @@ OPENAI_MODEL = "gpt-4o"
 APP_NAME = "Aura UX — UX-Risk-Guardian"
 st.set_page_config(page_title=APP_NAME, layout="wide")
 
-# ===== Fallback embutido como OBJETO PYTHON (sem YAML) =====
+# ===== Fallback embutido como OBJETO PYTHON (sem YAML em string) =====
 EMBEDDED_REFERENCES = [
     {
         "id": "ruckenstein2022",
@@ -155,9 +155,7 @@ EMBEDDED_RISKS = [
     },
 ]
 
-# ====== Utilitários básicos e carregamento da base ======
-
-# Caminhos flexíveis (raiz ou /data)
+# ====== Caminhos e utilitários ======
 BASE_DIR = Path(__file__).parent.resolve()
 def resolve_path(filename: str) -> Path:
     p_root = BASE_DIR / filename
@@ -256,6 +254,7 @@ def map_to_other_frameworks(query: str) -> str:
             "NIST AI RMF: Govern → Map → Measure → Manage; document risks and controls. "
             "OECD AI: Inclusive growth, human-centered values, transparency, robustness, accountability.")
 
+# ===== PDF export, logging e UI =====
 def export_result_to_pdf(query: str, act_tag: str, act_note: str,
                          blocks: List[Dict[str, Any]], ref_dict: Dict[str, Any]):
     path = str(BASE_DIR / "aura_ux_export.pdf")
@@ -306,28 +305,18 @@ def export_result_to_pdf(query: str, act_tag: str, act_note: str,
     c.save()
     return path
 
-def compose_answer(prompt: str) -> str:
-    """LLM opcional para condensar texto; se não houver chave, retorna o prompt."""
-    api_key = os.environ.get("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY", None)
-    if not api_key or OpenAI is None:
-        return prompt
+def log_query(q: str):
     try:
-        client = OpenAI(api_key=api_key)
-        resp = client.chat.completions.create(
-            model=OPENAI_MODEL,
-            temperature=0.2,
-            messages=[
-                {"role": "system", "content":
-                    "You are Aura UX, a concise assistant. Use only the provided curated notes. "
-                    "Short bullets, plain English, no extra facts."},
-                {"role": "user", "content": prompt},
-            ],
-        )
-        return resp.choices[0].message.content.strip()
+        ts = datetime.utcnow().isoformat()
+        header = not TELEM_PATH.exists()
+        with open(TELEM_PATH, "a", encoding="utf-8") as f:
+            if header:
+                f.write("timestamp,query\n")
+            f.write(f"{ts},{q.replace(',', ';').replace('\n',' ')}\n")
     except Exception:
-        return prompt
+        pass
 
-# ======= UI =======
+# ===== UI =====
 st.markdown(
     """
     <style>
@@ -351,20 +340,9 @@ with st.sidebar:
     show_other_frameworks = st.toggle("Show GDPR / NIST AI RMF / OECD mapping", value=False)
     st.markdown("---")
     st.markdown("**Disclaimer:** This tool is not legal advice.")
-    st.markdown("**Scope Note:** Focused on UX + AI ethics. Off-topic queries may be flagged.")
+    st.markdown("**Scope Note:** Focused on UX + AI ethics.")
 
-def log_query(q: str):
-    try:
-        ts = datetime.utcnow().isoformat()
-        header = not TELEM_PATH.exists()
-        with open(TELEM_PATH, "a", encoding="utf-8") as f:
-            if header:
-                f.write("timestamp,query\n")
-            f.write(f"{ts},{q.replace(',', ';').replace('\n',' ')}\n")
-    except Exception:
-        pass
-
-# ==== Carrega KB (de arquivo ou fallback embutido) ====
+# ==== Carrega base ====
 kb_risks, kb_refs = load_kb(RISKS_PATH, REFS_PATH)
 ref_dict = build_reference_dict(kb_refs)
 
@@ -372,15 +350,15 @@ col_q, col_export = st.columns([4,1])
 with col_q:
     query = st.text_input("Search what you are doing or want to do (e.g., 'compile interview results with AI')", "")
 with col_export:
-    st.write(""); st.write("")
-    export_clicked = st.button("Export PDF")
+    st.write("")
+    st.write("")
+    export_clicked = st.button("Export PDF", key="export_top")
 
 def render_results(results: List[Dict[str, Any]], query_text: str):
     act_tag, act_note = map_to_eu_ai_act(query_text)
     st.markdown(f"**EU AI Act**: `{act_tag}` — {act_note}")
     if show_other_frameworks:
         st.caption(map_to_other_frameworks(query_text))
-
     numeric_refs_seen, rendered_blocks = [], []
     for r in results:
         sev = r.get("severity", "Moderate").lower().replace(" ", "")
@@ -397,14 +375,12 @@ def render_results(results: List[Dict[str, Any]], query_text: str):
                 st.markdown(f"- {m}")
             st.markdown("<div class='section-title'>Evidence Summary</div>", unsafe_allow_html=True)
             st.markdown("- " + "\n- ".join(r.get("evidence", [])[:5]))
-
             refs_section, seen = render_numeric_citations(
                 r.get("references", [])[:5], ref_dict, start_index=len(numeric_refs_seen)+1
             )
             numeric_refs_seen.extend(seen)
             st.markdown("<div class='section-title'>References</div>", unsafe_allow_html=True)
             st.markdown(refs_section, unsafe_allow_html=True)
-
             if r.get("ai_act_note"):
                 st.caption(f"EU AI Act note: {r['ai_act_note']}")
             rendered_blocks.append({"risk": r, "refs": seen})
@@ -414,15 +390,14 @@ if query.strip():
     log_query(query)
     if any(t in query.lower() for t in ["medical", "diagnosis", "trading", "finance advice", "tax"]):
         st.warning("This app focuses on UX + AI ethics. Your query seems out of scope.")
-
     results = retrieve_by_query(query, kb_risks, ref_dict, max_items=5)
     act_tag, act_note, rendered_blocks = render_results(results, query)
-
     if export_clicked:
         pdf_path = export_result_to_pdf(query, act_tag, act_note, rendered_blocks, ref_dict)
         if pdf_path:
             with open(pdf_path, "rb") as f:
-                st.download_button("Download PDF", f, file_name=Path(pdf_path).name, mime="application/pdf")
+                st.download_button("Download PDF", f, file_name=Path(pdf_path).name,
+                                   mime="application/pdf", key="download_query")
 else:
     st.info("Tip: Click a UCD phase to explore typical AI risks & mitigations.")
     pcol1, pcol2, pcol3, pcol4 = st.columns(4)
@@ -438,8 +413,10 @@ else:
     if phase_query:
         results = phase_presets(phase_query, kb_risks, ref_dict, max_items=5)
         act_tag, act_note, rendered_blocks = render_results(results, phase_query)
-        if st.button("Export PDF"):
+        if st.button("Export PDF", key="export_phase"):
             pdf_path = export_result_to_pdf(phase_query, act_tag, act_note, rendered_blocks, ref_dict)
             if pdf_path:
                 with open(pdf_path, "rb") as f:
-                    st.download_button("Download PDF", f, file_name=Path(pdf_path).name, mime="application/pdf")
+                    st.download_button("Download PDF", f, file_name=Path(pdf_path).name,
+                                       mime="application/pdf", key="download_phase")
+
