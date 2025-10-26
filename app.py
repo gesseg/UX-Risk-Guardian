@@ -58,12 +58,27 @@ RISKS_PATH = resolve_path("risks.yaml")
 REFS_PATH  = resolve_path("references.yaml")
 TELEM_PATH = BASE_DIR / "telemetry.csv"
 
-def load_kb(risks_path: str, refs_path: str):
-    with open(risks_path, "r", encoding="utf-8") as f:
-        risks = yaml.safe_load(f)
-    with open(refs_path, "r", encoding="utf-8") as f:
-        refs = yaml.safe_load(f)
-    return risks, refs
+def load_kb(risks_path: Path, refs_path: Path):
+    """Tenta ler de /raiz ou /data; se não existir, usa o fallback EMBUTIDO e mostra um aviso."""
+    try:
+        if risks_path.exists() and refs_path.exists():
+            with open(risks_path, "r", encoding="utf-8") as f:
+                risks = yaml.safe_load(f)
+            with open(refs_path, "r", encoding="utf-8") as f:
+                refs = yaml.safe_load(f)
+            return risks, refs
+        else:
+            # Fallback embutido (usa as variáveis EMBEDDED_RISKS e EMBEDDED_REFERENCES)
+            risks = yaml.safe_load(EMBEDDED_RISKS)
+            refs  = yaml.safe_load(EMBEDDED_REFERENCES)
+            st.caption("Using embedded curated base (data files not found).")
+            return risks, refs
+    except Exception as e:
+        # Qualquer erro inesperado -> fallback
+        risks = yaml.safe_load(EMBEDDED_RISKS)
+        refs  = yaml.safe_load(EMBEDDED_REFERENCES)
+        st.caption(f"Using embedded curated base (fallback due to error: {type(e).__name__}).")
+        return risks, refs
 
 def build_reference_dict(refs_yaml) -> dict:
     d = {}
