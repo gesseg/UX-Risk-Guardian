@@ -1,4 +1,4 @@
-# app.py — Aura UX — UX-Risk-Guardian (versão estável final)
+# app.py — Aura — UX Risk Guardian (versão estável final)
 import os
 from datetime import datetime
 from pathlib import Path
@@ -18,7 +18,7 @@ except Exception:
     OpenAI = None
 OPENAI_MODEL = "gpt-4o"
 
-APP_NAME = "Aura UX — UX-Risk-Guardian"
+APP_NAME = "Aura — UX Risk Guardian"
 st.set_page_config(page_title=APP_NAME, layout="wide")
 
 # ===== Fallback embutido como OBJETO PYTHON (sem YAML em string) =====
