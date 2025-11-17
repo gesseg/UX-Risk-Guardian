@@ -196,7 +196,7 @@ def load_kb(risks_path: Path, refs_path: Path):
             st.caption("Using embedded curated base (data files not found).")
             return EMBEDDED_RISKS, EMBEDDED_REFERENCES
     except Exception:
-        st.caption("Using embedded curated base (fallback).")
+        st.caption("This tool aims to help mitigate the risks of applying generative artificial intelligence in UX Design activities.")
         return EMBEDDED_RISKS, EMBEDDED_REFERENCES
 
 
@@ -580,7 +580,7 @@ if "query_input" not in st.session_state:
     st.session_state["query_input"] = ""
 
 with st.sidebar:
-    st.markdown("### Settings")
+    st.markdown("### Information")
     st.markdown("**Disclaimer:** This tool is not legal advice.")
     st.markdown("**Scope Note:** Focused on UX + AI ethics.")
 
@@ -598,7 +598,7 @@ ref_dict = build_reference_dict(kb_refs)
 
 # Campo de busca (sem botão de export)
 query = st.text_input(
-    "Search what you are doing or want to do (e.g., 'compile interview results with AI')",
+    "Search what you want to do using artificial intelligence (e.g., 'compile interview results with AI')",
     st.session_state["query_input"],
     key="query_input",
 )
