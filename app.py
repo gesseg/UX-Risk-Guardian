@@ -1,4 +1,4 @@
-# app.py — Aura — UX Risk Guardian (com IA para resumo e mitigações curtas)
+# app.py — Aura — UX Risk Guardian (com IA para resumo, mitigações curtas e plano de ação)
 import os
 from datetime import datetime
 from pathlib import Path
@@ -484,6 +484,83 @@ Rules:
         return ""
 
 
+# ===== IA: plano de ação (5 passos) =====
+def generate_action_plan_for_risk(
+    query_text: str,
+    risk: Dict[str, Any],
+    ref_dict: Dict[str, Dict[str, Any]],
+) -> str:
+    """
+    Gera um plano de ação com 5 passos para aplicar as mitigações do risco
+    na tarefa descrita pelo usuário. Sempre baseado nas referências embedadas.
+    Retorna Markdown com lista numerada.
+    """
+    if openai_client is None:
+        return ""
+
+    ref_lines = []
+    for rid in risk.get("references", [])[:3]:
+        ref = ref_dict.get(rid)
+        if not ref:
+            continue
+        authors = ref.get("authors", "")
+        year = ref.get("year", "")
+        title = ref.get("title", "")
+        venue = ref.get("venue", "")
+        ref_lines.append(f"{authors} ({year}). {title}. {venue}.")
+
+    refs_text = "\n".join(ref_lines) if ref_lines else "No references available."
+
+    system_msg = (
+        "You are an assistant that creates very practical action plans for UX and Product teams, "
+        "based on known AI risks and academic references. Actions must be concrete and realistic in a UX workflow."
+    )
+
+    prompt = f"""
+User task: "{query_text}"
+
+Risk:
+- Title: {risk.get('title', '')}
+- Phase: {risk.get('phase', '')}
+- Static mitigations: {", ".join(risk.get('mitigations', []))}
+
+Available academic references (ONLY use these for citations):
+{refs_text}
+
+Write the answer in English.
+
+OUTPUT FORMAT (exactly):
+
+**Action plan (5 steps)**
+1. One concise, concrete action (what to do, who does it, in which artifact or meeting). End with a citation in the format (Author Year).
+2. One concise, concrete action. End with a citation in the format (Author Year).
+3. One concise, concrete action. End with a citation in the format (Author Year).
+4. One concise, concrete action. End with a citation in the format (Author Year).
+5. One concise, concrete action. End with a citation in the format (Author Year).
+
+Rules:
+- Actions must be practical (e.g., update templates, run a specific review, add a check in a workflow, etc.).
+- Do NOT invent new references. Only use names/years from the list provided.
+- Keep each action with one sentence, very direct.
+- Focus on applying the mitigations in a UX team context.
+"""
+
+    try:
+        response = openai_client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.4,
+            max_tokens=400,
+        )
+        content = response.choices[0].message.content.strip()
+        return content
+    except Exception:
+        return ""
+
+
 # ===== UI =====
 st.markdown(
     """
@@ -560,7 +637,7 @@ def render_results(results: List[Dict[str, Any]], query_text: str):
             if ai_block:
                 st.markdown(ai_block)
             else:
-                # Fallback estático
+                # Fallback estático (máx. 3 mitigações)
                 st.markdown(r.get("justification", ""))
                 st.markdown(
                     "<div class='section-title'>Mitigations (HCL)</div>",
@@ -575,6 +652,19 @@ def render_results(results: List[Dict[str, Any]], query_text: str):
                 ev_list = r.get("evidence", [])[:3]
                 if ev_list:
                     st.markdown("- " + "\n- ".join(ev_list))
+
+            # Botão de plano de ação
+            if st.button(
+                "Generate action plan (5 key actions)",
+                key=f"plan_{r['id']}",
+            ):
+                action_plan = generate_action_plan_for_risk(query_text, r, ref_dict)
+                if action_plan:
+                    st.markdown(action_plan)
+                else:
+                    st.info(
+                        "Action plan could not be generated. Please try again or check your API configuration."
+                    )
 
             # Referências numéricas (mantidas)
             refs_section, seen = render_numeric_citations(
@@ -676,4 +766,3 @@ else:
                             mime="application/pdf",
                             key="download_phase",
                         )
-
