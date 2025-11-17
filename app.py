@@ -1,4 +1,4 @@
-# app.py — Aura — UX Risk Guardian (com IA para resumo, mitigações curtas e plano de ação)
+# app.py — Aura — UX Risk Guardian (com IA, plano de ação e back to home corrigido)
 import os
 from datetime import datetime
 from pathlib import Path
@@ -405,17 +405,12 @@ def sort_by_severity_desc(risks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return sorted(risks, key=rank, reverse=True)
 
 
-# ===== IA: resumo de risco + mitigações (máx. 3) =====
+# ===== IA: resumo de risco + mitigações (máx. 3), sem citar (Autor Ano) em cada frase =====
 def generate_ai_summary_for_risk(
     query_text: str,
     risk: Dict[str, Any],
     ref_dict: Dict[str, Dict[str, Any]],
 ) -> str:
-    """
-    Usa o modelo da OpenAI para gerar um resumo curto do risco (1–2 frases)
-    e até 3 mitigações (1 frase cada), sempre referenciando os artigos embedados.
-    Retorna um bloco de Markdown. Se não houver cliente OpenAI, retorna string vazia.
-    """
     if openai_client is None:
         return ""
 
@@ -447,7 +442,7 @@ Risk template:
 - Static justification: {risk.get('justification', '')}
 - Static mitigations: {", ".join(risk.get('mitigations', []))}
 
-Available academic references (ONLY use these for citations):
+Available academic references (ONLY for background knowledge, do not print full citations):
 {refs_text}
 
 Write the answer in English, as concise and practical guidance.
@@ -458,12 +453,13 @@ OUTPUT FORMAT (exactly):
 One or two short sentences explaining why this risk matters in this specific task, in business and UX terms, using plain language.
 
 **Mitigations (HCL)**
-- One sentence mitigation, ending with a citation in the format (Author Year).
-- One sentence mitigation, ending with a citation in the format (Author Year).
-- Optional third sentence mitigation, also ending with a citation in the format (Author Year).
+- One short mitigation (1 sentence), very practical.
+- One short mitigation (1 sentence), very practical.
+- Optional third mitigation (1 sentence), very practical.
 
 Rules:
-- Do NOT invent new references. Only use names/years from the list provided.
+- Do NOT invent new references. Use the references only as background to shape the advice.
+- Do NOT append (Author Year) at the end of each sentence.
 - Keep everything short, direct and actionable.
 - Focus on what the designer should actually do differently.
 """
@@ -484,17 +480,12 @@ Rules:
         return ""
 
 
-# ===== IA: plano de ação (5 passos) =====
+# ===== IA: plano de ação (5 passos), sem citar (Autor Ano) em cada frase =====
 def generate_action_plan_for_risk(
     query_text: str,
     risk: Dict[str, Any],
     ref_dict: Dict[str, Dict[str, Any]],
 ) -> str:
-    """
-    Gera um plano de ação com 5 passos para aplicar as mitigações do risco
-    na tarefa descrita pelo usuário. Sempre baseado nas referências embedadas.
-    Retorna Markdown com lista numerada.
-    """
     if openai_client is None:
         return ""
 
@@ -524,7 +515,7 @@ Risk:
 - Phase: {risk.get('phase', '')}
 - Static mitigations: {", ".join(risk.get('mitigations', []))}
 
-Available academic references (ONLY use these for citations):
+Available academic references (ONLY for background knowledge, do not print full citations):
 {refs_text}
 
 Write the answer in English.
@@ -532,15 +523,15 @@ Write the answer in English.
 OUTPUT FORMAT (exactly):
 
 **Action plan (5 steps)**
-1. One concise, concrete action (what to do, who does it, in which artifact or meeting). End with a citation in the format (Author Year).
-2. One concise, concrete action. End with a citation in the format (Author Year).
-3. One concise, concrete action. End with a citation in the format (Author Year).
-4. One concise, concrete action. End with a citation in the format (Author Year).
-5. One concise, concrete action. End with a citation in the format (Author Year).
+1. One concise, concrete action (what to do, who does it, in which artifact or meeting).
+2. One concise, concrete action.
+3. One concise, concrete action.
+4. One concise, concrete action.
+5. One concise, concrete action.
 
 Rules:
 - Actions must be practical (e.g., update templates, run a specific review, add a check in a workflow, etc.).
-- Do NOT invent new references. Only use names/years from the list provided.
+- Do NOT invent or print explicit citations like (Author Year); use references only as background.
 - Keep each action with one sentence, very direct.
 - Focus on applying the mitigations in a UX team context.
 """
@@ -580,22 +571,26 @@ st.markdown(
 
 st.title(APP_NAME)
 
-# Estado de navegação
+# ===== Estado de navegação =====
 if "mode" not in st.session_state:
     st.session_state["mode"] = "home"  # "home", "search_results", "phase_results"
 if "last_phase_query" not in st.session_state:
     st.session_state["last_phase_query"] = ""
+if "query_input" not in st.session_state:
+    st.session_state["query_input"] = ""
 
 with st.sidebar:
     st.markdown("### Settings")
     st.markdown("**Disclaimer:** This tool is not legal advice.")
     st.markdown("**Scope Note:** Focused on UX + AI ethics.")
 
-# Botão de voltar (quando não está no home)
+# Botão de voltar (agora limpando a busca e forçando rerun)
 if st.session_state["mode"] != "home":
     if st.button("← Back to home", key="back_home"):
         st.session_state["mode"] = "home"
         st.session_state["last_phase_query"] = ""
+        st.session_state["query_input"] = ""  # limpa o campo de busca
+        st.experimental_rerun()
 
 # ==== Carrega base ====
 kb_risks, kb_refs = load_kb(RISKS_PATH, REFS_PATH)
@@ -604,7 +599,7 @@ ref_dict = build_reference_dict(kb_refs)
 # Campo de busca (sem botão de export)
 query = st.text_input(
     "Search what you are doing or want to do (e.g., 'compile interview results with AI')",
-    "",
+    st.session_state["query_input"],
     key="query_input",
 )
 
@@ -624,20 +619,17 @@ def render_results(results: List[Dict[str, Any]], query_text: str):
         }.get(sev, "moderate")
 
         with st.expander(f"{r['title']}"):
-            # Badge de prioridade e fase
             st.markdown(
                 f"<span class='risk-badge {badge_class}'>Priority: {r['severity']}</span> "
                 f"<span class='pill'>Phase: {r['phase']}</span>",
                 unsafe_allow_html=True,
             )
 
-            # Tenta gerar resumo + mitigações via IA
             ai_block = generate_ai_summary_for_risk(query_text, r, ref_dict)
 
             if ai_block:
                 st.markdown(ai_block)
             else:
-                # Fallback estático (máx. 3 mitigações)
                 st.markdown(r.get("justification", ""))
                 st.markdown(
                     "<div class='section-title'>Mitigations (HCL)</div>",
@@ -653,7 +645,6 @@ def render_results(results: List[Dict[str, Any]], query_text: str):
                 if ev_list:
                     st.markdown("- " + "\n- ".join(ev_list))
 
-            # Botão de plano de ação
             if st.button(
                 "Generate action plan (5 key actions)",
                 key=f"plan_{r['id']}",
@@ -666,7 +657,6 @@ def render_results(results: List[Dict[str, Any]], query_text: str):
                         "Action plan could not be generated. Please try again or check your API configuration."
                     )
 
-            # Referências numéricas (mantidas)
             refs_section, seen = render_numeric_citations(
                 r.get("references", [])[:5],
                 ref_dict,
@@ -689,7 +679,6 @@ def render_results(results: List[Dict[str, Any]], query_text: str):
 
 # ===== Lógica principal =====
 if query.strip():
-    # Modo: resultados por busca
     st.session_state["mode"] = "search_results"
     log_query(query)
     if any(
@@ -704,11 +693,9 @@ if query.strip():
     act_tag, act_note, rendered_blocks = render_results(results, query)
 
 else:
-    # Sem texto na busca
     if st.session_state["mode"] == "phase_results" and st.session_state[
         "last_phase_query"
     ]:
-        # Re-renderiza os resultados da fase selecionada anteriormente
         phase_query = st.session_state["last_phase_query"]
         results = phase_presets(phase_query, kb_risks, ref_dict, max_items=5)
         results = sort_by_severity_desc(results)
@@ -730,7 +717,6 @@ else:
                         key="download_phase",
                     )
     else:
-        # Tela inicial (home)
         st.session_state["mode"] = "home"
         st.info("Tip: Click a UCD phase to explore typical AI risks & mitigations.")
         pcol1, pcol2, pcol3, pcol4 = st.columns(4)
