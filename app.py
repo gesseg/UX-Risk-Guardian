@@ -581,8 +581,9 @@ if "query_input" not in st.session_state:
 
 with st.sidebar:
     st.markdown("### Information")
+    st.markdown("**Objective:** This tool aims to help mitigate the risks of applying generative artificial intelligence in UX Design activities.")
     st.markdown("**Disclaimer:** This tool is not legal advice.")
-    st.markdown("**Scope Note:** Focused on UX + AI ethics.")
+    st.markdown("**Scope Note:** Focused on UX Design + AI Ethics.")
 
 # Botão de voltar (agora limpando a busca e forçando rerun)
 if st.session_state["mode"] != "home":
