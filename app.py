@@ -1,4 +1,4 @@
-# app.py — Aura — UX Risk Guardian (versão ajustada)
+# app.py — Aura — UX Risk Guardian (com IA para resumo e mitigações curtas)
 import os
 from datetime import datetime
 from pathlib import Path
@@ -16,7 +16,20 @@ try:
     from openai import OpenAI
 except Exception:
     OpenAI = None
+
 OPENAI_MODEL = "gpt-4o"
+
+
+def get_openai_client():
+    if OpenAI is None:
+        return None
+    try:
+        return OpenAI()
+    except Exception:
+        return None
+
+
+openai_client = get_openai_client()
 
 APP_NAME = "Aura — UX Risk Guardian"
 st.set_page_config(page_title=APP_NAME, layout="wide")
@@ -157,14 +170,18 @@ EMBEDDED_RISKS = [
 
 # ====== Caminhos e utilitários ======
 BASE_DIR = Path(__file__).parent.resolve()
+
+
 def resolve_path(filename: str) -> Path:
     p_root = BASE_DIR / filename
     p_data = BASE_DIR / "data" / filename
     return p_root if p_root.exists() else p_data
 
+
 RISKS_PATH = resolve_path("risks.yaml")
-REFS_PATH  = resolve_path("references.yaml")
+REFS_PATH = resolve_path("references.yaml")
 TELEM_PATH = BASE_DIR / "telemetry.csv"
+
 
 def load_kb(risks_path: Path, refs_path: Path):
     """Lê YAML externo se existir; senão usa EMBEDDED_* (listas Python)."""
@@ -182,16 +199,24 @@ def load_kb(risks_path: Path, refs_path: Path):
         st.caption("Using embedded curated base (fallback).")
         return EMBEDDED_RISKS, EMBEDDED_REFERENCES
 
+
 def build_reference_dict(refs_yaml) -> dict:
     return {r["id"]: r for r in refs_yaml}
 
-def render_numeric_citations(ref_ids: List[str], ref_dict: Dict[str, dict], start_index: int = 1):
+
+def render_numeric_citations(
+    ref_ids: List[str], ref_dict: Dict[str, dict], start_index: int = 1
+):
     lines, seen_numbers, i = [], [], start_index
     for rid in ref_ids[:5]:
         ref = ref_dict.get(rid)
         if not ref:
             continue
-        doi_part = f"https://doi.org/{ref['doi']}" if ref.get("doi") else ref.get("url", "")
+        doi_part = (
+            f"https://doi.org/{ref['doi']}"
+            if ref.get("doi")
+            else ref.get("url", "")
+        )
         authors = ref.get("authors", "").replace("&", "and")
         year = ref.get("year", "?")
         title = ref.get("title", "")
@@ -205,11 +230,16 @@ def render_numeric_citations(ref_ids: List[str], ref_dict: Dict[str, dict], star
     html = "<br/>".join(lines) if lines else "No references."
     return html, seen_numbers
 
+
 def _match_score(q: str, text: str) -> int:
-    q = q.lower(); text = text.lower()
+    q = q.lower()
+    text = text.lower()
     return sum(1 for t in q.replace("-", " ").split() if t and t in text)
 
-def retrieve_by_query(query: str, risks: List[Dict[str, Any]], ref_dict: Dict[str, Any], max_items: int = 5):
+
+def retrieve_by_query(
+    query: str, risks: List[Dict[str, Any]], ref_dict: Dict[str, Any], max_items: int = 5
+):
     phase_map = {
         "phase:understand": "Understand",
         "phase:specify": "Specify",
@@ -221,84 +251,131 @@ def retrieve_by_query(query: str, risks: List[Dict[str, Any]], ref_dict: Dict[st
             return [r for r in risks if r.get("phase") == phase][:max_items]
     scored = []
     for r in risks:
-        blob = " ".join([
-            r.get("title",""),
-            r.get("justification",""),
-            " ".join(r.get("evidence",[])),
-            " ".join(r.get("mitigations",[])),
-        ])
+        blob = " ".join(
+            [
+                r.get("title", ""),
+                r.get("justification", ""),
+                " ".join(r.get("evidence", [])),
+                " ".join(r.get("mitigations", [])),
+            ]
+        )
         scored.append((_match_score(query, blob), r))
     scored.sort(key=lambda x: x[0], reverse=True)
     out = [r for s, r in scored if s > 0][:max_items]
     return out or risks[:max_items]
 
-def phase_presets(phase_query: str, risks: List[Dict[str, Any]], ref_dict: Dict[str, Any], max_items: int = 5):
+
+def phase_presets(
+    phase_query: str, risks: List[Dict[str, Any]], ref_dict: Dict[str, Any], max_items: int = 5
+):
     return retrieve_by_query(phase_query, risks, ref_dict, max_items=max_items)
+
 
 def map_to_eu_ai_act(query: str):
     q = query.lower()
     if any(x in q for x in ["biometric", "surveillance", "social scoring"]):
-        return ("Prohibited / High-Risk",
-                "Biometric identification/surveillance features can fall under high-risk or prohibited categories under the EU AI Act.")
+        return (
+            "Prohibited / High-Risk",
+            "Biometric identification/surveillance features can fall under high-risk or prohibited categories under the EU AI Act.",
+        )
     if any(x in q for x in ["recruit", "hiring", "credit", "loan", "education", "health"]):
-        return ("High-Risk",
-                "Impacts access to essential services or fundamental rights; stricter obligations apply (risk mgmt, data quality, human oversight).")
-    if any(x in q for x in ["chatbot", "content generation", "assistive", "ux writing", "summarize", "persona"]):
-        return ("Limited-Risk",
-                "Likely transparency obligations (disclose AI use), log events, provide oversight mechanisms.")
-    return ("Minimal-Risk",
-            "General-purpose UX support with low rights impact; follow good practices and basic transparency.")
+        return (
+            "High-Risk",
+            "Impacts access to essential services or fundamental rights; stricter obligations apply (risk mgmt, data quality, human oversight).",
+        )
+    if any(
+        x in q
+        for x in [
+            "chatbot",
+            "content generation",
+            "assistive",
+            "ux writing",
+            "summarize",
+            "persona",
+        ]
+    ):
+        return (
+            "Limited-Risk",
+            "Likely transparency obligations (disclose AI use), log events, provide oversight mechanisms.",
+        )
+    return (
+        "Minimal-Risk",
+        "General-purpose UX support with low rights impact; follow good practices and basic transparency.",
+    )
 
-# ===== PDF export, logging e UI =====
-def export_result_to_pdf(query: str, act_tag: str, act_note: str,
-                         blocks: List[Dict[str, Any]], ref_dict: Dict[str, Any]):
+
+def export_result_to_pdf(
+    query: str,
+    act_tag: str,
+    act_note: str,
+    blocks: List[Dict[str, Any]],
+    ref_dict: Dict[str, Any],
+):
     path = str(BASE_DIR / "aura_ux_export.pdf")
     c = canvas.Canvas(path, pagesize=A4)
     width, height = A4
 
     def write_wrapped(text, x, y, max_width):
-        lines = simpleSplit(text, 'Helvetica', 10, max_width)
+        lines = simpleSplit(text, "Helvetica", 10, max_width)
         for line in lines:
-            c.drawString(x, y, line); y -= 12
+            c.drawString(x, y, line)
+            y -= 12
         return y
 
-    margin = 2*cm; x = margin; y = height - margin
-    c.setFont("Helvetica-Bold", 12); c.drawString(x, y, APP_NAME); y -= 16
+    margin = 2 * cm
+    x = margin
+    y = height - margin
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(x, y, APP_NAME)
+    y -= 16
     c.setFont("Helvetica", 10)
-    y = write_wrapped(f"Query: {query}", x, y, width - 2*margin)
-    y = write_wrapped(f"EU AI Act: {act_tag} — {act_note}", x, y, width - 2*margin)
+    y = write_wrapped(f"Query: {query}", x, y, width - 2 * margin)
+    y = write_wrapped(f"EU AI Act: {act_tag} — {act_note}", x, y, width - 2 * margin)
     y -= 8
 
     for block in blocks:
         r = block["risk"]
         c.setFont("Helvetica-Bold", 11)
-        y = write_wrapped(f"Risk: {r['title']} (Priority: {r['severity']}; Phase: {r['phase']})",
-                          x, y, width - 2*margin)
+        y = write_wrapped(
+            f"Risk: {r['title']} (Priority: {r['severity']}; Phase: {r['phase']})",
+            x,
+            y,
+            width - 2 * margin,
+        )
         c.setFont("Helvetica", 10)
-        y = write_wrapped(f"Justification: {r.get('justification','')}", x, y, width - 2*margin)
-        y = write_wrapped("Mitigations:", x, y, width - 2*margin)
+        y = write_wrapped(
+            f"Justification: {r.get('justification','')}",
+            x,
+            y,
+            width - 2 * margin,
+        )
+        y = write_wrapped("Mitigations:", x, y, width - 2 * margin)
         for m in r.get("mitigations", [])[:5]:
-            y = write_wrapped(f" - {m}", x+12, y, width - 2*margin - 12)
-        y = write_wrapped("Evidence:", x, y, width - 2*margin)
+            y = write_wrapped(f" - {m}", x + 12, y, width - 2 * margin - 12)
+        y = write_wrapped("Evidence:", x, y, width - 2 * margin)
         for e in r.get("evidence", [])[:5]:
-            y = write_wrapped(f" - {e}", x+12, y, width - 2*margin - 12)
+            y = write_wrapped(f" - {e}", x + 12, y, width - 2 * margin - 12)
         ref_ids = r.get("references", [])[:5]
         if ref_ids:
-            y = write_wrapped("References:", x, y, width - 2*margin)
+            y = write_wrapped("References:", x, y, width - 2 * margin)
             idx = 1
             for rid in ref_ids:
                 ref = ref_dict.get(rid)
                 if ref:
-                    line = (f"[{idx}] {ref.get('authors','')} ({ref.get('year','')}). "
-                            f"{ref.get('title','')} — {ref.get('venue','')} — DOI: {ref.get('doi','')}")
-                    y = write_wrapped(line, x+12, y, width - 2*margin - 12)
+                    line = (
+                        f"[{idx}] {ref.get('authors','')} ({ref.get('year','')}). "
+                        f"{ref.get('title','')} — {ref.get('venue','')} — DOI: {ref.get('doi','')}"
+                    )
+                    y = write_wrapped(line, x + 12, y, width - 2 * margin - 12)
                     idx += 1
         y -= 8
-        if y < 3*cm:
-            c.showPage(); y = height - margin
+        if y < 3 * cm:
+            c.showPage()
+            y = height - margin
 
     c.save()
     return path
+
 
 def log_query(q: str):
     try:
@@ -311,6 +388,7 @@ def log_query(q: str):
     except Exception:
         pass
 
+
 # ===== Ordenação por severidade =====
 SEVERITY_RANK = {
     "Very High": 4,
@@ -319,10 +397,92 @@ SEVERITY_RANK = {
     "Low": 1,
 }
 
+
 def sort_by_severity_desc(risks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     def rank(r):
         return SEVERITY_RANK.get(r.get("severity", "Moderate"), 2)
+
     return sorted(risks, key=rank, reverse=True)
+
+
+# ===== IA: resumo de risco + mitigações (máx. 3) =====
+def generate_ai_summary_for_risk(
+    query_text: str,
+    risk: Dict[str, Any],
+    ref_dict: Dict[str, Dict[str, Any]],
+) -> str:
+    """
+    Usa o modelo da OpenAI para gerar um resumo curto do risco (1–2 frases)
+    e até 3 mitigações (1 frase cada), sempre referenciando os artigos embedados.
+    Retorna um bloco de Markdown. Se não houver cliente OpenAI, retorna string vazia.
+    """
+    if openai_client is None:
+        return ""
+
+    ref_lines = []
+    for rid in risk.get("references", [])[:3]:
+        ref = ref_dict.get(rid)
+        if not ref:
+            continue
+        authors = ref.get("authors", "")
+        year = ref.get("year", "")
+        title = ref.get("title", "")
+        venue = ref.get("venue", "")
+        ref_lines.append(f"{authors} ({year}). {title}. {venue}.")
+
+    refs_text = "\n".join(ref_lines) if ref_lines else "No references available."
+
+    system_msg = (
+        "You are an assistant that helps UX and Product professionals reason about "
+        "ethical and practical risks of using AI in UX Design workflows. "
+        "You must be concise and always ground your answers in the references provided."
+    )
+
+    prompt = f"""
+User task (free-text description of what they are doing): "{query_text}"
+
+Risk template:
+- Title: {risk.get('title', '')}
+- Phase: {risk.get('phase', '')}
+- Static justification: {risk.get('justification', '')}
+- Static mitigations: {", ".join(risk.get('mitigations', []))}
+
+Available academic references (ONLY use these for citations):
+{refs_text}
+
+Write the answer in English, as concise and practical guidance.
+
+OUTPUT FORMAT (exactly):
+
+**Risk**
+One or two short sentences explaining why this risk matters in this specific task, in business and UX terms, using plain language.
+
+**Mitigations (HCL)**
+- One sentence mitigation, ending with a citation in the format (Author Year).
+- One sentence mitigation, ending with a citation in the format (Author Year).
+- Optional third sentence mitigation, also ending with a citation in the format (Author Year).
+
+Rules:
+- Do NOT invent new references. Only use names/years from the list provided.
+- Keep everything short, direct and actionable.
+- Focus on what the designer should actually do differently.
+"""
+
+    try:
+        response = openai_client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.4,
+            max_tokens=350,
+        )
+        content = response.choices[0].message.content.strip()
+        return content
+    except Exception:
+        return ""
+
 
 # ===== UI =====
 st.markdown(
@@ -345,7 +505,7 @@ st.title(APP_NAME)
 
 # Estado de navegação
 if "mode" not in st.session_state:
-    st.session_state["mode"] = "home"          # "home", "search_results", "phase_results"
+    st.session_state["mode"] = "home"  # "home", "search_results", "phase_results"
 if "last_phase_query" not in st.session_state:
     st.session_state["last_phase_query"] = ""
 
@@ -371,58 +531,105 @@ query = st.text_input(
     key="query_input",
 )
 
+
 def render_results(results: List[Dict[str, Any]], query_text: str):
     act_tag, act_note = map_to_eu_ai_act(query_text)
     st.markdown(f"**EU AI Act**: `{act_tag}` — {act_note}")
     numeric_refs_seen, rendered_blocks = [], []
+
     for r in results:
         sev = r.get("severity", "Moderate").lower().replace(" ", "")
-        badge_class = {"low":"low","moderate":"moderate","high":"high","veryhigh":"veryhigh"}.get(sev, "moderate")
+        badge_class = {
+            "low": "low",
+            "moderate": "moderate",
+            "high": "high",
+            "veryhigh": "veryhigh",
+        }.get(sev, "moderate")
+
         with st.expander(f"{r['title']}"):
+            # Badge de prioridade e fase
             st.markdown(
                 f"<span class='risk-badge {badge_class}'>Priority: {r['severity']}</span> "
                 f"<span class='pill'>Phase: {r['phase']}</span>",
                 unsafe_allow_html=True,
             )
-            st.markdown(r.get("justification", ""))
-            st.markdown("<div class='section-title'>Mitigations (HCL)</div>", unsafe_allow_html=True)
-            for m in r.get("mitigations", [])[:5]:
-                st.markdown(f"- {m}")
-            st.markdown("<div class='section-title'>Evidence Summary</div>", unsafe_allow_html=True)
-            st.markdown("- " + "\n- ".join(r.get("evidence", [])[:5]))
+
+            # Tenta gerar resumo + mitigações via IA
+            ai_block = generate_ai_summary_for_risk(query_text, r, ref_dict)
+
+            if ai_block:
+                st.markdown(ai_block)
+            else:
+                # Fallback estático
+                st.markdown(r.get("justification", ""))
+                st.markdown(
+                    "<div class='section-title'>Mitigations (HCL)</div>",
+                    unsafe_allow_html=True,
+                )
+                for m in r.get("mitigations", [])[:3]:
+                    st.markdown(f"- {m}")
+                st.markdown(
+                    "<div class='section-title'>Evidence Summary</div>",
+                    unsafe_allow_html=True,
+                )
+                ev_list = r.get("evidence", [])[:3]
+                if ev_list:
+                    st.markdown("- " + "\n- ".join(ev_list))
+
+            # Referências numéricas (mantidas)
             refs_section, seen = render_numeric_citations(
-                r.get("references", [])[:5], ref_dict, start_index=len(numeric_refs_seen)+1
+                r.get("references", [])[:5],
+                ref_dict,
+                start_index=len(numeric_refs_seen) + 1,
             )
             numeric_refs_seen.extend(seen)
-            st.markdown("<div class='section-title'>References</div>", unsafe_allow_html=True)
+            st.markdown(
+                "<div class='section-title'>References</div>",
+                unsafe_allow_html=True,
+            )
             st.markdown(refs_section, unsafe_allow_html=True)
+
             if r.get("ai_act_note"):
                 st.caption(f"EU AI Act note: {r['ai_act_note']}")
+
             rendered_blocks.append({"risk": r, "refs": seen})
+
     return act_tag, act_note, rendered_blocks
+
 
 # ===== Lógica principal =====
 if query.strip():
     # Modo: resultados por busca
     st.session_state["mode"] = "search_results"
     log_query(query)
-    if any(t in query.lower() for t in ["medical", "diagnosis", "trading", "finance advice", "tax"]):
-        st.warning("This app focuses on UX + AI ethics. Your query seems out of scope.")
+    if any(
+        t in query.lower()
+        for t in ["medical", "diagnosis", "trading", "finance advice", "tax"]
+    ):
+        st.warning(
+            "This app focuses on UX + AI ethics. Your query seems out of scope."
+        )
     results = retrieve_by_query(query, kb_risks, ref_dict, max_items=5)
     results = sort_by_severity_desc(results)
     act_tag, act_note, rendered_blocks = render_results(results, query)
 
 else:
     # Sem texto na busca
-    if st.session_state["mode"] == "phase_results" and st.session_state["last_phase_query"]:
+    if st.session_state["mode"] == "phase_results" and st.session_state[
+        "last_phase_query"
+    ]:
         # Re-renderiza os resultados da fase selecionada anteriormente
         phase_query = st.session_state["last_phase_query"]
         results = phase_presets(phase_query, kb_risks, ref_dict, max_items=5)
         results = sort_by_severity_desc(results)
-        act_tag, act_note, rendered_blocks = render_results(results, phase_query)
+        act_tag, act_note, rendered_blocks = render_results(
+            results, phase_query
+        )
 
         if st.button("Export PDF", key="export_phase"):
-            pdf_path = export_result_to_pdf(phase_query, act_tag, act_note, rendered_blocks, ref_dict)
+            pdf_path = export_result_to_pdf(
+                phase_query, act_tag, act_note, rendered_blocks, ref_dict
+            )
             if pdf_path:
                 with open(pdf_path, "rb") as f:
                     st.download_button(
@@ -452,10 +659,14 @@ else:
             st.session_state["last_phase_query"] = phase_query
             results = phase_presets(phase_query, kb_risks, ref_dict, max_items=5)
             results = sort_by_severity_desc(results)
-            act_tag, act_note, rendered_blocks = render_results(results, phase_query)
+            act_tag, act_note, rendered_blocks = render_results(
+                results, phase_query
+            )
 
             if st.button("Export PDF", key="export_phase"):
-                pdf_path = export_result_to_pdf(phase_query, act_tag, act_note, rendered_blocks, ref_dict)
+                pdf_path = export_result_to_pdf(
+                    phase_query, act_tag, act_note, rendered_blocks, ref_dict
+                )
                 if pdf_path:
                     with open(pdf_path, "rb") as f:
                         st.download_button(
