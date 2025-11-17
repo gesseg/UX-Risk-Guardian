@@ -581,7 +581,7 @@ if "query_input" not in st.session_state:
 
 with st.sidebar:
     st.markdown("### Information")
-    st.markdown("**Objective:** This tool aims to help mitigate the risks of applying generative artificial intelligence in UX Design activities.")
+    st.markdown("**Objective:** This tool helps reduce risks in the use of generative AI for UX Design.")
     st.markdown("**Disclaimer:** This tool is not legal advice.")
     st.markdown("**Scope Note:** Focused on UX Design + AI Ethics.")
 
