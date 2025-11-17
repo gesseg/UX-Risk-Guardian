@@ -1,4 +1,4 @@
-# app.py — Aura — UX Risk Guardian (versão estável final)
+# app.py — Aura — UX Risk Guardian (versão ajustada)
 import os
 from datetime import datetime
 from pathlib import Path
@@ -249,11 +249,6 @@ def map_to_eu_ai_act(query: str):
     return ("Minimal-Risk",
             "General-purpose UX support with low rights impact; follow good practices and basic transparency.")
 
-def map_to_other_frameworks(query: str) -> str:
-    return ("GDPR: assess lawful basis, purpose limitation, data minimization. "
-            "NIST AI RMF: Govern → Map → Measure → Manage; document risks and controls. "
-            "OECD AI: Inclusive growth, human-centered values, transparency, robustness, accountability.")
-
 # ===== PDF export, logging e UI =====
 def export_result_to_pdf(query: str, act_tag: str, act_note: str,
                          blocks: List[Dict[str, Any]], ref_dict: Dict[str, Any]):
@@ -316,6 +311,19 @@ def log_query(q: str):
     except Exception:
         pass
 
+# ===== Ordenação por severidade =====
+SEVERITY_RANK = {
+    "Very High": 4,
+    "High": 3,
+    "Moderate": 2,
+    "Low": 1,
+}
+
+def sort_by_severity_desc(risks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def rank(r):
+        return SEVERITY_RANK.get(r.get("severity", "Moderate"), 2)
+    return sorted(risks, key=rank, reverse=True)
+
 # ===== UI =====
 st.markdown(
     """
@@ -335,30 +343,37 @@ st.markdown(
 
 st.title(APP_NAME)
 
+# Estado de navegação
+if "mode" not in st.session_state:
+    st.session_state["mode"] = "home"          # "home", "search_results", "phase_results"
+if "last_phase_query" not in st.session_state:
+    st.session_state["last_phase_query"] = ""
+
 with st.sidebar:
     st.markdown("### Settings")
-    show_other_frameworks = st.toggle("Show GDPR / NIST AI RMF / OECD mapping", value=False)
-    st.markdown("---")
     st.markdown("**Disclaimer:** This tool is not legal advice.")
     st.markdown("**Scope Note:** Focused on UX + AI ethics.")
+
+# Botão de voltar (quando não está no home)
+if st.session_state["mode"] != "home":
+    if st.button("← Back to home", key="back_home"):
+        st.session_state["mode"] = "home"
+        st.session_state["last_phase_query"] = ""
 
 # ==== Carrega base ====
 kb_risks, kb_refs = load_kb(RISKS_PATH, REFS_PATH)
 ref_dict = build_reference_dict(kb_refs)
 
-col_q, col_export = st.columns([4,1])
-with col_q:
-    query = st.text_input("Search what you are doing or want to do (e.g., 'compile interview results with AI')", "")
-with col_export:
-    st.write("")
-    st.write("")
-    export_clicked = st.button("Export PDF", key="export_top")
+# Campo de busca (sem botão de export)
+query = st.text_input(
+    "Search what you are doing or want to do (e.g., 'compile interview results with AI')",
+    "",
+    key="query_input",
+)
 
 def render_results(results: List[Dict[str, Any]], query_text: str):
     act_tag, act_note = map_to_eu_ai_act(query_text)
     st.markdown(f"**EU AI Act**: `{act_tag}` — {act_note}")
-    if show_other_frameworks:
-        st.caption(map_to_other_frameworks(query_text))
     numeric_refs_seen, rendered_blocks = [], []
     for r in results:
         sev = r.get("severity", "Moderate").lower().replace(" ", "")
@@ -386,37 +401,68 @@ def render_results(results: List[Dict[str, Any]], query_text: str):
             rendered_blocks.append({"risk": r, "refs": seen})
     return act_tag, act_note, rendered_blocks
 
+# ===== Lógica principal =====
 if query.strip():
+    # Modo: resultados por busca
+    st.session_state["mode"] = "search_results"
     log_query(query)
     if any(t in query.lower() for t in ["medical", "diagnosis", "trading", "finance advice", "tax"]):
         st.warning("This app focuses on UX + AI ethics. Your query seems out of scope.")
     results = retrieve_by_query(query, kb_risks, ref_dict, max_items=5)
+    results = sort_by_severity_desc(results)
     act_tag, act_note, rendered_blocks = render_results(results, query)
-    if export_clicked:
-        pdf_path = export_result_to_pdf(query, act_tag, act_note, rendered_blocks, ref_dict)
-        if pdf_path:
-            with open(pdf_path, "rb") as f:
-                st.download_button("Download PDF", f, file_name=Path(pdf_path).name,
-                                   mime="application/pdf", key="download_query")
+
 else:
-    st.info("Tip: Click a UCD phase to explore typical AI risks & mitigations.")
-    pcol1, pcol2, pcol3, pcol4 = st.columns(4)
-    phase_query = ""
-    if pcol1.button("Understand"):
-        phase_query = "phase:understand"
-    if pcol2.button("Specify"):
-        phase_query = "phase:specify"
-    if pcol3.button("Create"):
-        phase_query = "phase:create"
-    if pcol4.button("Evaluate"):
-        phase_query = "phase:evaluate"
-    if phase_query:
+    # Sem texto na busca
+    if st.session_state["mode"] == "phase_results" and st.session_state["last_phase_query"]:
+        # Re-renderiza os resultados da fase selecionada anteriormente
+        phase_query = st.session_state["last_phase_query"]
         results = phase_presets(phase_query, kb_risks, ref_dict, max_items=5)
+        results = sort_by_severity_desc(results)
         act_tag, act_note, rendered_blocks = render_results(results, phase_query)
+
         if st.button("Export PDF", key="export_phase"):
             pdf_path = export_result_to_pdf(phase_query, act_tag, act_note, rendered_blocks, ref_dict)
             if pdf_path:
                 with open(pdf_path, "rb") as f:
-                    st.download_button("Download PDF", f, file_name=Path(pdf_path).name,
-                                       mime="application/pdf", key="download_phase")
+                    st.download_button(
+                        "Download PDF",
+                        f,
+                        file_name=Path(pdf_path).name,
+                        mime="application/pdf",
+                        key="download_phase",
+                    )
+    else:
+        # Tela inicial (home)
+        st.session_state["mode"] = "home"
+        st.info("Tip: Click a UCD phase to explore typical AI risks & mitigations.")
+        pcol1, pcol2, pcol3, pcol4 = st.columns(4)
+        phase_query = ""
+        if pcol1.button("Understand"):
+            phase_query = "phase:understand"
+        if pcol2.button("Specify"):
+            phase_query = "phase:specify"
+        if pcol3.button("Create"):
+            phase_query = "phase:create"
+        if pcol4.button("Evaluate"):
+            phase_query = "phase:evaluate"
+
+        if phase_query:
+            st.session_state["mode"] = "phase_results"
+            st.session_state["last_phase_query"] = phase_query
+            results = phase_presets(phase_query, kb_risks, ref_dict, max_items=5)
+            results = sort_by_severity_desc(results)
+            act_tag, act_note, rendered_blocks = render_results(results, phase_query)
+
+            if st.button("Export PDF", key="export_phase"):
+                pdf_path = export_result_to_pdf(phase_query, act_tag, act_note, rendered_blocks, ref_dict)
+                if pdf_path:
+                    with open(pdf_path, "rb") as f:
+                        st.download_button(
+                            "Download PDF",
+                            f,
+                            file_name=Path(pdf_path).name,
+                            mime="application/pdf",
+                            key="download_phase",
+                        )
 
